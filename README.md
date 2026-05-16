@@ -154,7 +154,7 @@ From [tasks/lessons.md](tasks/lessons.md):
 If you are at Anthropic or an aligned organization working on **AI safety in clinical mental health**, **constitutional AI for sensitive contexts**, or **regulatory alignment of frontier AI in healthcare**, the operator of this vault is open to conversations.
 
 - Email: onurb693@gmail.com
-- LinkedIn: [Onour Impram](https://www.linkedin.com/in/onour-impram/)
+- LinkedIn: [Onour Impram](https://www.linkedin.com/in/onour-impram-877637154/) | ORCID: [0000-0003-1076-3928](https://orcid.org/0000-0003-1076-3928)
 - Academic profile: [Istanbul University](https://psikoloji.istanbul.edu.tr/)
 
 ## License
