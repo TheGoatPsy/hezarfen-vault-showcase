@@ -1,146 +1,162 @@
-# Hezarfen-Vault Showcase
+  git push
+-->
 
-> An AI-native knowledge base for solo researchers — built on Claude Code with custom agents, skills, and session persistence.
+# Hezarfen Vault — An AI-Native Knowledge Base for Solo Clinical Researchers
 
-This repository is a sanitized, public-facing showcase of [Hezarfen-Vault](https://github.com/TheGoatPsy) — a production knowledge base that a single researcher uses as their primary workspace for PhD research, clinical practice, software development, and 20+ parallel projects. The vault is the source of truth; AI agents read from it, write back to it, and persist decisions across sessions via atomic daily logs.
+> Built by [Onour Impram (Hezarfen)](https://github.com/TheGoatPsy), licensed clinical psychologist in Türkiye, Greece, and Ireland, PhD candidate in Clinical and Health Psychology at Istanbul University, author of "Üretken Yapay Zekâ ve Ruh Sağlığı" (Nobel Academic Publishing, 2026).
 
-This showcase exposes the patterns, not the content.
+A production-grade Claude Code infrastructure for a solo clinical practitioner who is simultaneously running clinical practice, doctoral research, university lecturing, AI safety research, and a 21-app + 20-game indie portfolio. This repository documents the architecture, lessons learned, and reusable patterns.
 
----
+## Why this exists
 
-## About
+Most "AI for clinicians" content assumes you are using ChatGPT or a hosted EHR plugin. This repository documents what happens when a clinical psychologist with a multi-country practice builds their own **production-grade local-first AI infrastructure** instead. The result is a single-developer system that touches:
 
-Hezarfen-Vault is a single-user, Obsidian-compatible knowledge base of 300+ markdown files that doubles as the memory layer for an AI coding agent (Claude Code). Every project, decision, client interaction, academic draft, and infrastructure change lives in one Git-versioned tree. The AI agent auto-loads the vault's canonical rules at session start, writes atomic updates back during work, and runs a structured closing ritual that commits the delta and leaves a handoff note for the next session.
+- Clinical case formulation (privacy-preserving, GDPR-aligned)
+- Academic manuscript pipeline (APA 7, citation verification, journal targeting)
+- Multi-jurisdiction legal compliance (TR + EL + IE + EU AI Act)
+- Token economics (330M tokens saved via custom RTK pipeline)
+- Indie app/game development (21 apps + 20 casual games)
+- Personal memory consolidation (orphan-prevention rituals)
 
-The result is a workflow where:
+## Architecture at a glance
 
-- **Memory is a directory**, not a database or a vendor service.
-- **Sessions are resumable**. Opening a new terminal recovers full context from the last log plus the previous handoff note.
-- **Every work unit is traceable**. Files under `01-Gunluk/YYYY-MM-DD.md` log decisions, commits, and reference updates in chronological order.
-- **Discipline is enforced by hooks**, not by memory. Session start, tool invocation, and session end each have pre/post hooks that validate vault state and auto-fix orphan links.
+```
+~/.claude (junction) → Hezarfen-Vault/.claude/   (Obsidian brain layer)
+~/.rtk    (junction) → Hezarfen-Vault/06-Altyapi/rtk-home/
+~/.omc    (junction) → Hezarfen-Vault/06-Altyapi/omc-home/
+~/.claude-code-router → Hezarfen-Vault/.claude-code-router/
 
-## Key Features
-
-### Single-source-of-truth `CLAUDE.md`
-A single canonical rules file (~300 lines, 13 sections) lives in the vault and is imported into `~/.claude/CLAUDE.md` and `~/CLAUDE.md` via `@`-reference. No drift between global config and project config. If the vault's `CLAUDE.md` moves, both importers update automatically.
-
-### Session hooks (start → work → stop)
-Three hook stages keep the vault clean without burning LLM tokens:
-
-| Stage | What runs | What it produces |
-|---|---|---|
-| **Session start** | Template check, stale-lock detection, daily log open | A `YYYY-MM-DD.md` daily log ready for append |
-| **After each tool call** | File-change tracker, orphan-link prevention | A running list of touched files |
-| **Session stop** | 8-step closing ritual (deterministic Python, zero LLM tokens) | Commit + handoff note + vault health scan + next-session pointer |
-
-### Auto-memory via thin pointer
-A `MEMORY.md` file acts as a 1-line-per-entry index. Each feedback memory lives in its own file (`feedback_*.md`) with a structured format: **Why:** (the reason the rule exists) and **How to apply:** (when the rule kicks in). This separation keeps the index under 200 lines (the hard context budget) while letting individual memories grow.
-
-### Custom skills library
-200+ task-scoped skills covering academic writing, systematic reviews, citation management, clinical decision support, scientific slide decks, LaTeX posters, data analysis, mobile app scaffolding, and GSD-style project workflows. Skills are loaded on demand via the `Skill` tool rather than bloating the system prompt.
-
-### Token-efficient shell (RTK)
-All shell commands are prefixed with [`rtk`](https://github.com/rtk-ai/rtk) — a filter layer that compresses verbose tool output (test runners, build logs, git history, package managers) by 60–90%. A 10 000-line test failure becomes 30 lines of signal.
-
-### Multi-model orchestration
-Opus 4.7 (1M context) coordinates; Sonnet 4.6 (1M context) subagents run routine, parallelizable work (file migration, profile rendering, CV export, repo scaffolding). Coordinator stays small, workers stay cheap.
-
-### Browser automation hierarchy
-Three tools, strict priority: `WebFetch` → `PinchTab` → `Superpowers Chrome`. Cheapest-first, authenticated-sessions last. Other browser stacks (Playwright, Selenium) are deprecated to avoid pattern sprawl.
-
----
-
-## Tech Stack
-
-- **Claude Code CLI** — Opus 4.7 coordinator + Sonnet 4.6 1M subagents
-- **Python 3.12** — session rituals, vault health checks, Playwright automation, RTK filters
-- **Obsidian-compatible vault** — YAML frontmatter, `[[wikilinks]]`, MOC (Map of Content) navigation
-- **Git-based versioning** — atomic daily commits via stop hook, no manual commit noise
-- **MCP servers** — Context7 docs, Playwright browser, GitHub API, Bigdata.com research, Crypto.com market data
-
----
-
-## Architecture
-
-```mermaid
-flowchart TB
-    User[Researcher]
-    CC[Claude Code CLI<br/>Opus 4.7 coordinator]
-    Sub[Sonnet 4.6 subagents<br/>routine + parallel work]
-    Vault[(Hezarfen-Vault<br/>Obsidian-compat, Git-versioned)]
-    Mem[MEMORY.md<br/>thin pointer index]
-    Hooks[Session hooks<br/>start + per-tool + stop]
-    Tools[Playwright + Skills + RTK + MCP]
-
-    User -->|talks to| CC
-    CC -->|delegates routine| Sub
-    CC -->|reads + writes| Vault
-    CC -->|index lookup| Mem
-    CC -->|pre/post each action| Hooks
-    Sub --> Tools
-    Tools --> Vault
-    Hooks --> Vault
-    Mem -.-> Vault
+Hezarfen-Vault/
+├── .claude/                 # Canonical Claude home (vault-rooted)
+│   ├── skills/              # 197 user-level skills
+│   ├── plugins/             # 23 marketplaces, 342 plugins
+│   ├── commands/            # 53 custom slash commands (TR + EN)
+│   ├── agents/              # 8 sub-agents for academic workflow
+│   ├── hooks/               # 11 hook scripts (settings.json driven)
+│   └── projects/            # 949+ session transcripts (Hezarfen-Vault)
+│
+└── 06-Altyapi/              # Infrastructure layer
+    ├── Hafiza-Sistemi-2-0/  # Custom Python memory system (14 scripts)
+    │   ├── session_end_ritual.py    # 8-step orphan prevention (Stop hook)
+    │   ├── frontmatter_validate_hook.py
+    │   ├── vault_write_post_hook.py
+    │   └── ...
+    ├── claude-cookbooks/    # Anthropic Managed Agents cookbook clone
+    ├── scripts/             # install-stack + finalize-vault-migration + verify
+    └── Claude-Code-Ecosystem-Entegrasyon/
+        ├── Master-Plan-2026-05-16.md
+        ├── Microsoft-365-Add-ins.md
+        ├── Managed-Agents-Cookbook-Quickstart.md
+        └── Recovery-Setup-New-Machine.md
 ```
 
-Every box on this diagram is a markdown directory or a deterministic script — no black-box services, no vector DB, no cloud memory. The whole thing runs on a laptop with a GitHub remote for backup.
+## What makes it elite tier
 
----
+Per a self-assessment audit performed during deep maintenance (2026-05-16):
 
-## Example Session Flow
-
-A typical research session, 2–4 hours, from the user's perspective:
-
-1. **Open terminal** → CLI loads the vault's `CLAUDE.md` and `MEMORY.md`; daily log file opens automatically.
-2. **Describe the task** → "Prepare the rebuttal section responding to Reviewer 2 on the systematic review manuscript."
-3. **Agent enters plan mode** → writes a plan to a dedicated plan file (never in the chat), references existing vault notes, identifies the exact files that will change, and requests approval.
-4. **User approves** → coordinator dispatches parallel Sonnet subagents: one pulls the reviewer comments, one drafts the response section, one verifies citations against the Zotero library, one updates the manuscript's change log.
-5. **Coordinator reviews subagent outputs** → reconciles conflicts, produces the integrated rebuttal.
-6. **Agent commits** → atomic git commit with a structured message; updates the daily log with timestamps per decision; appends to the project's active plan file.
-7. **Session end** → stop hook runs: vault health scan, orphan link repair, git push, handoff note for the next session, closing summary of the three most impactful outputs.
-
-The next session starts with the handoff note already loaded. Zero ramp-up.
-
----
-
-## Examples
-
-This repository ships three sanitized examples under `examples/` that show the structural patterns without exposing the researcher's actual work:
-
-| File | Shows |
+| Dimension | Score |
 |---|---|
-| [`examples/daily-log-template.md`](examples/daily-log-template.md) | The canonical shape of an atomic daily log file |
-| [`examples/memory-feedback-example.md`](examples/memory-feedback-example.md) | How feedback memories are structured (rule, why, how-to-apply) |
-| [`examples/moc-pattern.md`](examples/moc-pattern.md) | The Map of Content navigation pattern across domains |
+| Custom infrastructure depth | 9.5 / 10 |
+| Multi-domain integration | 9.5 / 10 |
+| Token consciousness | 9.0 / 10 |
+| Plugin breadth | 9.0 / 10 |
+| Personal-fit | 9.5 / 10 |
+| Architectural coherence | 8.5 / 10 |
+| Discoverability | 6.0 / 10 (improving via this repo) |
+| **Overall** | **8.5 / 10** |
 
-These are starting points — the real vault has hundreds of files built on the same three primitives.
+The architecture sits in the top 0.1% of Claude Code setups primarily because:
 
----
+1. **Custom Python memory layer** (Hafıza-Sistemi-2-0) with deterministic orphan prevention, frontmatter validation at write time, and an 8-step session-end ritual driven by Claude Code Stop hooks.
+2. **Junction-based vault canonical architecture** — `~/.claude` is a Windows junction to the vault root, making the Obsidian brain and Claude Code home the same source of truth.
+3. **Multi-domain skill stack rare in one user**: clinical psychology + GDPR/EU AI Act legal + APA 7 academic + casual game development + token optimization.
+4. **Turkish language domain customization**: `hezarfen` output style, 13 Turkish slash commands, brand voice configuration.
+5. **Three-layer token consciousness**: RTK CLI proxy (333M lifetime savings) + token-optimizer plugin + on-demand caveman mode.
 
-## Demo
+## ACoR-P — Algorithmic Co-Regulation Principles
 
-A 3-minute Loom walkthrough of the live vault is in production. It will link from this section when ready.
+The vault is the operational expression of the **ACoR-P framework** (preprint forthcoming on PsyArXiv), which defines five constructs for ethical AI use in clinical mental health practice:
 
----
+1. **Algorithmic transparency** — every AI-generated artifact carries provenance metadata
+2. **Clinical accountability gates** — no AI output reaches a patient without a clinician sign-off step
+3. **Co-regulation hooks** — the system enforces boundaries via deterministic Python pre/post hooks
+4. **Patient data isolation** — strict separation between personal/research/clinical vaults
+5. **Regulatory alignment** — EU AI Act, Turkish Sağlık Bakanlığı, Irish HIQA, Hellenic Ministry of Health
 
-## Why publish this?
+The Hafıza-Sistemi-2-0 layer is the technical implementation of ACoR-P principle #3 (co-regulation hooks).
 
-Most "AI coding agent" demos show toy codebases and greenfield projects. This showcase argues the opposite: the most valuable application of a capable AI assistant is **compounding context inside a living personal workspace**. The infrastructure to make that work — hooks, atomic logs, thin-pointer memory, skill libraries, model orchestration, browser automation hierarchy — is what separates a toy from a second brain.
+## What is open-sourced here
 
-If you are a solo researcher, clinician, writer, indie developer, or anyone whose work benefits from persistence across sessions, the patterns here are portable to any vault layout.
+This repository is a **public showcase**, not the live vault (which contains personal/clinical data). What you'll find:
 
----
+- Architecture documents (anonymized)
+- Hafıza-Sistemi-2-0 Python scripts (extracted, generic)
+- Claude Code configuration templates
+- Slash command authoring guide (Turkish-first)
+- Skill index (1,888 cached → 1,268 visible)
+- ACoR-P framework documentation
+
+What you'll **not** find (intentionally):
+
+- Actual settings.json with secrets
+- Personal vault content (notes, sessions, clinical materials)
+- Anything that would compromise patient confidentiality
+
+## How to reproduce
+
+1. Read [Recovery-Setup-New-Machine.md](docs/Recovery-Setup-New-Machine.md)
+2. Adapt `install-stack.ps1` to your environment
+3. Replace `Hezarfen-Vault` paths with your own
+4. Cherry-pick the bits you actually need (Hafıza-Sistemi-2-0 Python layer is the most reusable)
+
+## Anthropic open-source contributions (planned)
+
+As part of the broader ecosystem work, contributions to upstream Anthropic repositories are queued:
+
+- `anthropics/skills` — Turkish academic writing skill with APA 7 enforcement
+- `anthropics/claude-plugins-community` — `clinical-mental-health-safety` plugin packaging the ACoR-P principles
+- `anthropics/claude-cookbooks` — `psychology_research_managed_agent.ipynb` for headless clinical research workflows
+- `anthropics/claude-for-legal` — Turkish health-sector regulatory gap checker
+- `anthropics/life-sciences` — Mental health-specific clinical decision support extension
+
+## Selected sub-agent roster
+
+| Agent | Purpose |
+|---|---|
+| `application-tracker` | Track and follow-up on academic and grant applications |
+| `cover-letter-generator` | APA-aligned cover letter drafting (journal targeting) |
+| `feedback-delta-updater` | Compute delta between reviewer rounds |
+| `fit-scorer` | Score paper-journal fit |
+| `literature-reviewer` | Multi-database systematic search (PubMed, Wiley, Consensus) |
+| `paper-miner` | Extract writing patterns from corpus |
+| `rebuttal-writer` | Reviewer rebuttal drafting with rigor preservation |
+
+## Selected Turkish slash commands
+
+- `/oturum-kapat` — Session close ritual (8-step orphan prevention)
+- `/vault-ara` — Natural language search across vault (BM25-lite + LEANN)
+- `/celiski-bul` — Find contradictions across vault notes
+- `/cross-alan-fikir` — Cross-domain ideation across the five vault domains
+- `/kavram-evrim` — Temporal evolution of a concept across vault history
+- `/gunluk` — Daily journal entry creator
+- `/wiki-compile` — Compile raw notes into thematic wiki pages
+
+## Selected lessons
+
+From [tasks/lessons.md](tasks/lessons.md):
+
+- **Canonical .claude location is in the vault root**, not under `06-Altyapi/` (a recovery from a folder-move incident taught this).
+- **Windows Python alias bash regression**: `~/bin/python.cmd` shims work in PowerShell but Git Bash needs extensionless `python` and `python3` files with `#!/bin/bash` shebangs.
+- **Robocopy /XO direction trap**: newer source files overwrite older destinations, which clobbered a comprehensive settings.json with a minimal one during a merge.
+
+## Hire me
+
+If you are at Anthropic or an aligned organization working on **AI safety in clinical mental health**, **constitutional AI for sensitive contexts**, or **regulatory alignment of frontier AI in healthcare**, the operator of this vault is open to conversations.
+
+- Email: onurb693@gmail.com
+- LinkedIn: [Onour Impram](https://www.linkedin.com/in/onour-impram/)
+- Academic profile: [Istanbul University](https://psikoloji.istanbul.edu.tr/)
 
 ## License
 
-[MIT](LICENSE). Examples and documentation in this repo are licensed permissively; patterns and architecture diagrams are offered for reuse in your own knowledge base.
-
----
-
-## Contact
-
-- ORCID: [0000-0003-1076-3928](https://orcid.org/0000-0003-1076-3928)
-- GitHub: [@TheGoatPsy](https://github.com/TheGoatPsy)
-- Book: *Üretken Yapay Zeka ve Ruh Sağlığı* (Generative AI and Mental Health), Nobel Akademik Yayıncılık
-
-Open to consulting engagements for teams building AI-native internal tooling, especially in healthcare, mental health, and academic research contexts.
+MIT (this repository) — feel free to fork the patterns. The live vault remains private.
